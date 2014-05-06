@@ -40,6 +40,7 @@ class DctDemo(wx.Frame):
             58, 59, 52, 45, 38, 31, 39, 46,
             53, 60, 61, 54, 47, 55, 62, 63])
 
+        self.lena = scipy.misc.lena()
         self.create_status_bar()
         self.create_main_panel()
 
@@ -58,32 +59,9 @@ class DctDemo(wx.Frame):
         self.Bind(wx.EVT_SCROLL_CHANGED, self.on_adjust, self.sld)
 
         # Create the mpl Figure and FigCanvas objects.
-        # 5x4 inches, 100 dots-per-inch
-        self.dpi = 100
-        self.fig = Figure((5.0, 4.0), dpi=self.dpi)
+        self.fig = Figure((5.0, 4.0))
+        self.fig, self.axes = plt.subplots(nrows=2, ncols=2)
         self.canvas = FigCanvas(self.panel, -1, self.fig)
-
-        self.lena = scipy.misc.lena()
-
-        self.axes1 = self.fig.add_subplot(2,2,1)
-        self.axes1.imshow(self.lena, cmap='gray')
-        self.axes1.axis('off')
-        self.axes1.set_title('Original Image')
-
-        self.axes2 = self.fig.add_subplot(2,2,2)
-        self.axes2.imshow(self.lena, cmap='gray')
-        self.axes2.axis('off')
-        self.axes2.set_title('Reconstructed Image')
-
-        self.axes3 = self.fig.add_subplot(2,2,3)
-        #self.hinton(ax=self.axes3)
-        self.axes3.axis('off')
-        self.axes3.set_title('DCT Coefficient Mask')
-
-        self.axes4 = self.fig.add_subplot(2,2,4)
-        self.axes4.imshow(np.zeros(self.lena.shape), cmap='jet')
-        self.axes4.axis('off')
-        self.axes4.set_title('Error Image')
 
         # Create the navigation toolbar, tied to the canvas
         self.toolbar = NavigationToolbar(self.canvas)
@@ -130,7 +108,7 @@ class DctDemo(wx.Frame):
         ax.yaxis.set_major_locator(plt.NullLocator())
 
         for (x,y),w in np.ndenumerate(matrix):
-            color = 'white' if w > 0 else 'black'
+            color = 'green' if w > 0 else 'black'
             size = np.sqrt(np.abs(w))
             # origo is at lower left instead of top left, transform coordinates
             rect = plt.Rectangle([x - size / 2, 7-y - size / 2], size, size,
@@ -148,6 +126,12 @@ class DctDemo(wx.Frame):
         return 10 * np.log10(255 ** 2 / m)
 
     def compute_ssim(self, img_mat_1, img_mat_2):
+        """
+        implementation using scipy and numpy from
+        http://isit.u-clermont1.fr/~anvacava/code.html
+        by antoine.vacavant@udamail.fr
+        Usage by kind permission from author.
+        """
         import scipy.ndimage
         from numpy.ma.core import exp
         from scipy.constants.constants import pi
@@ -237,12 +221,26 @@ class DctDemo(wx.Frame):
                 q = np.round(idct(idct(Q.T, norm='ortho').T, norm='ortho'))
                 rec[y:y+8,x:x+8] = q.astype(np.int64)
 
-        self.axes1.imshow(self.lena, cmap='gray')
-        self.axes2.imshow(rec, cmap='gray')
-        self.hinton(ax=self.axes3)
-        self.axes3.set_title('DCT Coefficient Mask')
         diff = np.abs(self.lena-rec)
-        self.axes4.imshow(diff, cmap='hot', vmax=255)
+
+        im = self.axes.flat[0].imshow(self.lena, cmap='gray')
+        self.axes.flat[0].set_title('Original Image')
+
+        im = self.axes.flat[1].imshow(rec, cmap='gray')
+        self.axes.flat[1].set_title('Reconstructed Image')
+
+        self.hinton(ax=self.axes.flat[2])
+        self.axes.flat[2].set_title('DCT Coefficient Mask')
+
+        im = self.axes.flat[3].imshow(diff, cmap='hot', vmin=0, vmax=255)
+        self.axes.flat[3].set_title('Error Image')
+
+        for ax in self.axes.flat:
+            ax.axis('off')
+
+        self.fig.subplots_adjust(right=0.8)
+        cbar_ax = self.fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        self.fig.colorbar(im, cax=cbar_ax)
 
         p = self.psnr(self.lena, rec)
         s = self.compute_ssim(self.lena, rec)
